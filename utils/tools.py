@@ -206,32 +206,21 @@ def get_total_urls(info_list, ipv_type_prefer, origin_type_prefer):
         for ipv_type in ipv_type_prefer:
             if len(total_urls) >= urls_limit:
                 break
-            if ipv_num[ipv_type] < config.ipv_limit[ipv_type]:
+            ipv_type_num = ipv_num[ipv_type]
+            ipv_type_limit = config.ipv_limit[ipv_type] or urls_limit
+            if ipv_type_num < ipv_type_limit:
                 urls = categorized_urls[origin][ipv_type]
                 if not urls:
-                    break
+                    continue
                 limit = min(
-                    max(config.source_limits.get(origin, urls_limit) - ipv_num[ipv_type], 0),
-                    max(config.ipv_limit[ipv_type] - ipv_num[ipv_type], 0),
+                    max(config.source_limits.get(origin, urls_limit) - ipv_type_num, 0),
+                    max(ipv_type_limit - ipv_type_num, 0),
                 )
                 limit_urls = urls[:limit]
                 total_urls.extend(limit_urls)
                 ipv_num[ipv_type] += len(limit_urls)
             else:
                 continue
-
-    if config.open_supply:
-        ipv_type_total = list(dict.fromkeys(ipv_type_prefer + (["ipv4", "ipv6"] if ipv_prefer_bool else [])))
-        if len(total_urls) < urls_limit:
-            for origin in origin_type_prefer:
-                if len(total_urls) >= urls_limit:
-                    break
-                for ipv_type in ipv_type_total:
-                    if len(total_urls) >= urls_limit:
-                        break
-                    extra_urls = categorized_urls[origin][ipv_type][: config.source_limits.get(origin, urls_limit)]
-                    total_urls.extend(extra_urls)
-                    total_urls = list(dict.fromkeys(total_urls))[:urls_limit]
 
     total_urls = list(dict.fromkeys(total_urls))[:urls_limit]
 
@@ -259,9 +248,14 @@ def is_ipv6(url):
     """
     try:
         host = urllib.parse.urlparse(url).hostname
-        ipaddress.IPv6Address(host)
-        return True
-    except ValueError:
+        if host:
+            addr_info = socket.getaddrinfo(host, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+            for info in addr_info:
+                if info[0] == socket.AF_INET6:
+                    return True
+        return False
+    except Exception as e:
+        print(f"Check url ipv6 error: {e}")
         return False
 
 
@@ -358,7 +352,7 @@ def convert_to_m3u(first_channel_name=None):
     user_final_file = resource_path(config.final_file)
     if os.path.exists(user_final_file):
         with open(user_final_file, "r", encoding="utf-8") as file:
-            m3u_output = '#EXTM3U x-tvg-url="https://ghproxy.cc/https://raw.githubusercontent.com/fanmingming/live/main/e.xml"\n'
+            m3u_output = '#EXTM3U x-tvg-url="https://raw.githubusercontent.com/fanmingming/live/main/e.xml"\n'
             current_group = None
             for line in file:
                 trimmed_line = line.strip()
@@ -378,7 +372,7 @@ def convert_to_m3u(first_channel_name=None):
                                       + ("+" if m.group(3) else ""),
                             first_channel_name if current_group == "🕘️更新时间" else original_channel_name,
                         )
-                        m3u_output += f'#EXTINF:-1 tvg-name="{processed_channel_name}" tvg-logo="https://ghproxy.cc/https://raw.githubusercontent.com/fanmingming/live/main/tv/{processed_channel_name}.png"'
+                        m3u_output += f'#EXTINF:-1 tvg-name="{processed_channel_name}" tvg-logo="https://raw.githubusercontent.com/fanmingming/live/main/tv/{processed_channel_name}.png"'
                         if current_group:
                             m3u_output += f' group-title="{current_group}"'
                         m3u_output += f",{original_channel_name}\n{channel_link}\n"

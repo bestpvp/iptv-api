@@ -215,7 +215,7 @@ mark).
 ![Workflow executed successfully](./images/workflow-success.png 'Workflow executed successfully')
 
 At this point, you can visit the file link to see if the latest results have been synchronized:
-https://ghproxy.cc/https://raw.githubusercontent.com/your\_github\_username/repository\_name (corresponding to the TV
+https://raw.githubusercontent.com/your\_github\_username/repository\_name (corresponding to the TV
 created when forking)
 /master/output/user\_result.txt
 
