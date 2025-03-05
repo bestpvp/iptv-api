@@ -342,6 +342,10 @@ class ConfigManager:
     def sort_duplicate_limit(self):
         return self.config.getint("Settings", "sort_duplicate_limit", fallback=3)
 
+    @property
+    def cdn_url(self):
+        return self.config.get("Settings", "cdn_url", fallback="")
+
     def load(self):
         """
         Load the config
@@ -350,12 +354,12 @@ class ConfigManager:
         user_config_path = resource_path("config/user_config.ini")
         default_config_path = resource_path("config/config.ini")
 
-        config_files = [user_config_path, default_config_path]
+        # user config overwrites default config
+        config_files = [default_config_path, user_config_path]
         for config_file in config_files:
             if os.path.exists(config_file):
                 with open(config_file, "r", encoding="utf-8") as f:
                     self.config.read_file(f)
-                break
 
     def set(self, section, key, value):
         """
