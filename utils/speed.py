@@ -314,7 +314,7 @@ def sort_urls_key(item: ChannelTestResult) -> float:
     Sort the urls with key
     """
     speed, resolution, origin = item["speed"], item["resolution"], item["origin"]
-    if origin == "whitelist":
+    if origin in ["whitelist", "live", "hls"]:
         return float("inf")
     else:
         return speed + get_resolution_value(resolution)
@@ -340,7 +340,7 @@ def sort_urls(name, data, supply=config.open_supply, filter_speed=config.open_fi
             "delay": None,
             "speed": None,
         }
-        if origin == "whitelist":
+        if origin in ["whitelist", "live", "hls"]:
             filter_data.append(result)
             continue
         if host and host in cache:

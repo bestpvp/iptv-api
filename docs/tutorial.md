@@ -268,13 +268,7 @@ pipenv run ui
 
 ## Docker
 
-- `iptv-api`（完整版本）：性能要求较高，更新速度较慢，稳定性、成功率高；修改配置`open_driver = False`可切换到`Lite`
-  版本运行模式（推荐酒店源、组播源、关键字搜索使用此版本）
-- `iptv-api:lite`（精简版本）：轻量级，性能要求低，更新速度快，稳定性不确定（推荐订阅源使用此版本）
-
 ### 1. 拉取镜像
-
-- iptv-api
 
 ```bash
 docker pull guovern/iptv-api:latest
@@ -286,72 +280,64 @@ docker pull guovern/iptv-api:latest
 docker pull docker.1ms.run/guovern/iptv-api:latest
 ```
 
-- iptv-api:lite
-
-```bash
-docker pull guovern/iptv-api:lite
-```
-
-🚀 代理加速（推荐国内用户使用）：
-
-```bash
-docker pull docker.1ms.run/guovern/iptv-api:lite
-```
-
 ### 2. 运行容器
-
-- iptv-api
 
 ```bash
 docker run -d -p 8000:8000 guovern/iptv-api
-```
-
-- iptv-api:lite
-
-```bash
-docker run -d -p 8000:8000 guovern/iptv-api:lite
 ```
 
 #### 挂载（推荐）：
 
 实现宿主机文件与容器文件同步，修改模板、配置、获取更新结果文件可直接在宿主机文件夹下操作
 
-以宿主机路径`/etc/docker`为例：
-
-- iptv-api
+以宿主机路径/etc/docker 为例：
 
 ```bash
 -v /etc/docker/config:/iptv-api/config
 -v /etc/docker/output:/iptv-api/output
 ```
 
-- iptv-api:lite
-
-```bash
--v /etc/docker/config:/iptv-api-lite/config
--v /etc/docker/output:/iptv-api-lite/output
-```
-
 ##### 注意：如果重新拉取镜像进行更新版本后，涉及到配置文件变更或增加新配置时，务必覆盖主机的旧配置文件（config目录），因为主机的配置文件是无法自动更新的，否则容器还是以旧配置运行。
 
 #### 环境变量：
 
-- 端口
-
-```bash
--e APP_PORT=8000
-```
-
-- 定时执行时间
-
-```bash
--e UPDATE_CRON="0 22,10 * * *"
-```
+| 变量          | 描述       | 默认值                |
+|:------------|:---------|:-------------------|
+| APP_HOST    | 服务host地址 | "http://localhost" |
+| APP_PORT    | 服务端口     | 8000               |
+| UPDATE_CRON | 定时任务执行时间 | "0 22,10 * * *"    |
 
 ### 3. 更新结果
 
-- 接口地址：`ip:8000`
-- m3u 接口：`ip:8000/m3u`
-- txt 接口：`ip:8000/txt`
-- 接口内容：`ip:8000/content`
-- 测速日志：`ip:8000/log`
+| 接口        | 描述         |
+|:----------|:-----------|
+| /         | 默认接口       |
+| /m3u      | m3u 格式接口   |
+| /txt      | txt 格式接口   |
+| /ipv4     | ipv4 默认接口  |
+| /ipv6     | ipv6 默认接口  |
+| /ipv4/txt | ipv4 txt接口 |
+| /ipv6/txt | ipv6 txt接口 |
+| /ipv4/m3u | ipv4 m3u接口 |
+| /ipv6/m3u | ipv6 m3u接口 |
+| /content  | 接口文本内容     |
+| /log      | 测速日志       |
+
+- RTMP 推流：
+
+| 推流接口           | 描述                |
+|:---------------|:------------------|
+| /live          | 推流live接口          |
+| /hls           | 推流hls接口           |
+| /live/txt      | 推流live txt接口      |
+| /hls/txt       | 推流hls txt接口       |
+| /live/m3u      | 推流live m3u接口      |
+| /hls/m3u       | 推流hls m3u接口       |
+| /live/ipv4/txt | 推流live ipv4 txt接口 |
+| /hls/ipv4/txt  | 推流hls ipv4 txt接口  |
+| /live/ipv4/m3u | 推流live ipv4 m3u接口 |
+| /hls/ipv4/m3u  | 推流hls ipv4 m3u接口  |
+| /live/ipv6/txt | 推流live ipv6 txt接口 |
+| /hls/ipv6/txt  | 推流hls ipv6 txt接口  |
+| /live/ipv6/m3u | 推流live ipv6 m3u接口 |
+| /hls/ipv6/m3u  | 推流hls ipv6 m3u接口  |

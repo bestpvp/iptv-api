@@ -1,6 +1,6 @@
 from typing import TypedDict, Literal, Union
 
-OriginType = Literal["local", "whitelist", "subscribe", "hotel", "multicast", "online_search"]
+OriginType = Literal["live", "hls", "local", "whitelist", "subscribe", "hotel", "multicast", "online_search"]
 IPvType = Literal["ipv4", "ipv6", None]
 
 

@@ -149,7 +149,7 @@ def get_resolution_value(resolution_str):
     return 0
 
 
-def get_total_urls(info_list: list[ChannelData], ipv_type_prefer, origin_type_prefer) -> list:
+def get_total_urls(info_list: list[ChannelData], ipv_type_prefer, origin_type_prefer, rtmp_type=None) -> list:
     """
     Get the total urls from info list
     """
@@ -170,7 +170,7 @@ def get_total_urls(info_list: list[ChannelData], ipv_type_prefer, origin_type_pr
             info["resolution"],
             info["ipv_type"]
         )
-        if not origin:
+        if not origin or (rtmp_type and origin in ["live", "hls"] and origin not in rtmp_type):
             continue
 
         if origin == "whitelist":
@@ -178,18 +178,24 @@ def get_total_urls(info_list: list[ChannelData], ipv_type_prefer, origin_type_pr
             if open_url_info:
                 w_info_value = w_info.partition("!")[2] or "白名单"
                 w_url = add_url_info(w_url, w_info_value)
-            total_urls.append({"id": channel_id, "url": w_url, "ipv_type": url_ipv_type})
+            info["url"] = w_url
+            total_urls.append(info)
+            continue
+
+        if not rtmp_type or (origin in rtmp_type):
+            total_urls.append(info)
             continue
 
         if origin == "subscribe" and "/rtp/" in url:
             origin = "multicast"
+            info["origin"] = origin
 
         if origin_prefer_bool and (origin not in origin_type_prefer):
             continue
 
         if open_url_info:
-            pure_url, _, info = url.partition("$")
-            if not info:
+            pure_url, _, url_info = url.partition("$")
+            if not url_info:
                 origin_name = constants.origin_map[origin]
                 if origin_name:
                     url = add_url_info(pure_url, origin_name)
@@ -200,14 +206,16 @@ def get_total_urls(info_list: list[ChannelData], ipv_type_prefer, origin_type_pr
             if resolution:
                 url = add_url_info(url, resolution)
 
+            info["url"] = url
+
         if not origin_prefer_bool:
             origin = "all"
 
         if ipv_prefer_bool:
             if url_ipv_type in ipv_type_prefer:
-                categorized_urls[origin][url_ipv_type].append({"id": channel_id, "url": url, "ipv_type": url_ipv_type})
+                categorized_urls[origin][url_ipv_type].append(info)
         else:
-            categorized_urls[origin]["all"].append({"id": channel_id, "url": url, "ipv_type": url_ipv_type})
+            categorized_urls[origin]["all"].append(info)
 
     ipv_num = {ipv_type: 0 for ipv_type in ipv_type_prefer}
     urls_limit = config.urls_limit
@@ -245,7 +253,6 @@ def get_total_urls_from_sorted_data(data):
     """
     Get the total urls with filter by date and duplicate from sorted data
     """
-    total_urls = []
     if len(data) > config.urls_limit:
         total_urls = [channel_data["url"] for channel_data, _ in filter_by_date(data)]
     else:
@@ -342,7 +349,7 @@ def get_ip_address():
     Get the IP address
     """
     host = os.getenv("APP_HOST", config.app_host)
-    port = os.getenv("SERVER_PORT", config.app_port)
+    port = os.getenv("APP_PORT", config.app_port)
     return f"{host}:{port}"
 
 
@@ -414,6 +421,9 @@ def remove_duplicates_from_list(data_list, seen, force_str=None):
     for item in data_list:
         item_first = item["url"]
         part = item["host"]
+        origin = item["origin"]
+        if origin in ["whitelist", "live", "hls"]:
+            continue
         if force_str:
             info = item_first.partition("$")[2]
             if info and info.startswith(force_str):
@@ -583,6 +593,19 @@ def get_name_urls_from_file(path: str, format_name_flag: bool = False) -> dict[s
                     url = name_url[0]["url"]
                     if url not in name_urls[name]:
                         name_urls[name].append(url)
+    return name_urls
+
+
+def get_name_uri_from_dir(path: str) -> dict:
+    """
+    Get the name and uri from dir, only from file name
+    """
+    real_path = get_real_path(resource_path(path))
+    name_urls = defaultdict(list)
+    if os.path.exists(real_path):
+        for file in os.listdir(real_path):
+            filename = file.rsplit(".", 1)[0]
+            name_urls[filename].append(f"{real_path}/{file}")
     return name_urls
 
 

@@ -64,6 +64,7 @@ other features, under development...
 ## Features
 
 - ✅ Customize the template to generate the channel you want
+- ✅ Supports RTMP streaming (live/hls) to enhance playback experience
 - ✅ Supports multiple source acquisition methods: local source, multicast source, hotel source, subscription source,
   keyword search
 - ✅ Interface speed verification, obtain delay, speed, resolution, filter invalid interface
@@ -211,17 +212,7 @@ pipenv run ui
 
 ### Docker
 
-- iptv-api (Full version): Higher performance requirements, slower update speed, high stability and success rate. Set
-  open_driver = False to switch to the lite running mode (recommended for hotel sources, multicast sources, and online
-  searches)
-- iptv-api:lite (Condensed version): Lightweight, low performance requirements, fast update speed, stability uncertain (
-  recommend using this version for the subscription source)
-
-It's recommended to try each one and choose the version that suits you
-
 #### 1. Pull the image
-
-- iptv-api
 
 ```bash
 docker pull guovern/iptv-api:latest
@@ -233,30 +224,10 @@ docker pull guovern/iptv-api:latest
 docker pull docker.1ms.run/guovern/iptv-api:latest
 ```
 
-- iptv-api:lite
-
-```bash
-docker pull guovern/iptv-api:lite
-```
-
-🚀 Proxy acceleration (recommended for users in China):
-
-```bash
-docker pull docker.1ms.run/guovern/iptv-api:lite
-```
-
 #### 2. Run the container
-
-- iptv-api
 
 ```bash
 docker run -d -p 8000:8000 guovern/iptv-api
-```
-
-- iptv-api:lite
-
-```bash
-docker run -d -p 8000:8000 guovern/iptv-api:lite
 ```
 
 ##### Mount(Recommended):
@@ -266,41 +237,53 @@ and retrieving updated result files can be directly operated in the host machine
 
 Taking the host path /etc/docker as an example:
 
-- iptv-api
-
 ```bash
 -v /etc/docker/config:/iptv-api/config
 -v /etc/docker/output:/iptv-api/output
 ```
 
-- iptv-api:lite
-
-```bash
--v /etc/docker/config:/iptv-api-lite/config
--v /etc/docker/output:/iptv-api-lite/output
-```
-
 ##### Environment Variables:
 
-- Port
+| Variable    | Description          | Default Value      |
+|:------------|:---------------------|:-------------------|
+| APP_HOST    | Service host address | "http://localhost" |
+| APP_PORT    | Service port         | 8000               |
+| UPDATE_CRON | Scheduled task time  | "0 22,10 * * *"    |
 
-```bash
--e APP_PORT=8000
-```
+#### 3. Update Results
 
-- Scheduled execution time
+| Endpoint  | Description           |
+|:----------|:----------------------|
+| /         | Default endpoint      |
+| /m3u      | m3u format endpoint   |
+| /txt      | txt format endpoint   |
+| /ipv4     | ipv4 default endpoint |
+| /ipv6     | ipv6 default endpoint |
+| /ipv4/txt | ipv4 txt endpoint     |
+| /ipv6/txt | ipv6 txt endpoint     |
+| /ipv4/m3u | ipv4 m3u endpoint     |
+| /ipv6/m3u | ipv6 m3u endpoint     |
+| /content  | Endpoint content      |
+| /log      | Speed test log        |
 
-```bash
--e UPDATE_CRON="0 22,10 * * *"
-```
+- RTMP Streaming:
 
-#### 3. Update results
-
-- API address: `ip:8000`
-- m3u api：`ip:8000/m3u`
-- txt api：`ip:8000/txt`
-- API content: `ip:8000/content`
-- Speed test log: `ip:8000/log`
+| Streaming Endpoint | Description                      |
+|:-------------------|:---------------------------------|
+| /live              | live streaming endpoint          |
+| /hls               | hls streaming endpoint           |
+| /live/txt          | live txt streaming endpoint      |
+| /hls/txt           | hls txt streaming endpoint       |
+| /live/m3u          | live m3u streaming endpoint      |
+| /hls/m3u           | hls m3u streaming endpoint       |
+| /live/ipv4/txt     | live ipv4 txt streaming endpoint |
+| /hls/ipv4/txt      | hls ipv4 txt streaming endpoint  |
+| /live/ipv4/m3u     | live ipv4 m3u streaming endpoint |
+| /hls/ipv4/m3u      | hls ipv4 m3u streaming endpoint  |
+| /live/ipv6/txt     | live ipv6 txt streaming endpoint |
+| /hls/ipv6/txt      | hls ipv6 txt streaming endpoint  |
+| /live/ipv6/m3u     | live ipv6 m3u streaming endpoint |
+| /hls/ipv6/m3u      | hls ipv6 m3u streaming endpoint  |
 
 ## Changelog
 

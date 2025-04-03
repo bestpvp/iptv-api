@@ -33,7 +33,9 @@ from utils.tools import (
     check_url_ipv6,
     check_ipv_type_match,
     get_ip_address,
-    convert_to_m3u, custom_print
+    convert_to_m3u,
+    custom_print,
+    get_name_uri_from_dir
 )
 from utils.types import ChannelData, OriginType, CategoryChannelData
 
@@ -56,7 +58,7 @@ def format_channel_data(url: str, origin: OriginType) -> ChannelData:
 
 
 def get_channel_data_from_file(channels, file, whitelist, open_local=config.open_local,
-                               local_data=None) -> CategoryChannelData:
+                               local_data=None, live_data=None, hls_data=None) -> CategoryChannelData:
     """
     Get the channel data from the file
     """
@@ -78,25 +80,21 @@ def get_channel_data_from_file(channels, file, whitelist, open_local=config.open
                     category_dict[name] = []
                 if name in whitelist:
                     for whitelist_url in whitelist[name]:
-                        category_dict[name].append({
-                            "id": hash(whitelist_url),
-                            "url": whitelist_url,
-                            "host": get_url_host(whitelist_url),
-                            "date": None,
-                            "resolution": None,
-                            "origin": "whitelist",
-                            "ipv_type": None
-                        })
+                        category_dict[name].append(format_channel_data(whitelist_url, "whitelist"))
+                if live_data and name in live_data:
+                    for live_url in live_data[name]:
+                        category_dict[name].append(format_channel_data(live_url, "live"))
+                if hls_data and name in hls_data:
+                    for hls_url in hls_data[name]:
+                        category_dict[name].append(format_channel_data(hls_url, "hls"))
                 if open_local:
                     if url:
-                        data = format_channel_data(url, "local")
-                        category_dict[name].append(data)
+                        category_dict[name].append(format_channel_data(url, "local"))
                     if local_data:
                         format_key = format_name(name)
                         if format_key in local_data:
                             for local_url in local_data[format_key]:
-                                local_channel_data = format_channel_data(local_url, "local")
-                                category_dict[name].append(local_channel_data)
+                                category_dict[name].append(format_channel_data(local_url, "local"))
     return channels
 
 
@@ -106,6 +104,11 @@ def get_channel_items() -> CategoryChannelData:
     """
     user_source_file = resource_path(config.source_file)
     channels = defaultdict(lambda: defaultdict(list))
+    live_data = None
+    hls_data = None
+    if config.open_rtmp:
+        live_data = get_name_uri_from_dir(constants.live_path)
+        hls_data = get_name_uri_from_dir(constants.hls_path)
     local_data = get_name_urls_from_file(config.local_file, format_name_flag=True)
     whitelist = get_name_urls_from_file(constants.whitelist_path)
     whitelist_urls = get_urls_from_file(constants.whitelist_path)
@@ -116,7 +119,7 @@ def get_channel_items() -> CategoryChannelData:
     if os.path.exists(user_source_file):
         with open(user_source_file, "r", encoding="utf-8") as file:
             channels = get_channel_data_from_file(
-                channels, file, whitelist, config.open_local, local_data
+                channels, file, whitelist, config.open_local, local_data, live_data, hls_data
             )
 
     if config.open_history:
@@ -523,7 +526,7 @@ def append_data_to_info_data(info_data, cate, name, data, origin=None, check=Tru
                 if white_info or (whitelist and check_url_by_keywords(url, whitelist)):
                     url_origin = "whitelist"
                 if (
-                        url_origin == "whitelist"
+                        url_origin in ["whitelist", "live", "hls"]
                         or (not check)
                         or (
                         check and check_ipv_type_match(ipv_type) and not check_url_by_keywords(url, blacklist))
@@ -564,9 +567,13 @@ def append_old_data_to_info_data(info_data, cate, name, data, whitelist=None, bl
         blacklist=blacklist,
         ipv_type_data=ipv_type_data
     )
-    local_len = len([item for item in data if item["origin"] in ["local", 'whitelist']])
-    print("History:", len(data) - local_len, end=", ")
-    print("Local:", local_len, end=", ")
+    live_len = sum(1 for item in data if item["origin"] == "live")
+    hls_len = sum(1 for item in data if item["origin"] == "hls")
+    local_len = sum(1 for item in data if item["origin"] == "local")
+    whitelist_len = sum(1 for item in data if item["origin"] == "whitelist")
+    history_len = len(data) - (live_len + hls_len + local_len + whitelist_len)
+    print(f"History: {history_len}, Live: {live_len}, HLS: {hls_len}, Local: {local_len}, Whitelist: {whitelist_len}",
+          end=", ")
 
 
 def print_channel_number(data: CategoryChannelData, cate: str, name: str):
@@ -613,7 +620,7 @@ def append_total_data(
     for cate, channel_obj in items:
         for name, old_info_list in channel_obj.items():
             print(f"{name}:", end=" ")
-            if old_info_list and (config.open_history or config.open_local):
+            if old_info_list and (config.open_history or config.open_local or config.open_rtmp):
                 append_old_data_to_info_data(data, cate, name, old_info_list, whitelist=whitelist, blacklist=blacklist,
                                              ipv_type_data=url_hosts_ipv_type)
             for method, result in total_result:
@@ -639,7 +646,7 @@ def append_total_data(
                         if name in names:
                             continue
                         print(f"{name}:", end=" ")
-                        if config.open_history or config.open_local:
+                        if config.open_history or config.open_local or config.open_rtmp:
                             old_info_list = channel_obj.get(name, [])
                             if old_info_list:
                                 append_old_data_to_info_data(
@@ -718,7 +725,10 @@ async def process_sort_channel_list(data, ipv6=False, callback=None):
 
 def process_write_content(path: str,
                           data: CategoryChannelData,
-                          rtmp_url: str = None,
+                          live: bool = False,
+                          hls: bool = False,
+                          live_url: str = None,
+                          hls_url: str = None,
                           open_empty_category: bool = False,
                           ipv_type_prefer: list[str] = None,
                           origin_type_prefer: list[str] = None,
@@ -729,7 +739,10 @@ def process_write_content(path: str,
     """
     Get channel write content
     :param path: write into path
-    :param rtmp_url: rtmp url
+    :param live: all live channel url
+    :param hls: all hls channel url
+    :param live_url: live url
+    :param hls_url: hls url
     :param open_empty_category: show empty category
     :param ipv_type_prefer: ipv type prefer
     :param origin_type_prefer: origin type prefer
@@ -741,6 +754,8 @@ def process_write_content(path: str,
     first_cate = True
     result_data = []
     custom_print.disable = not enable_print
+    rtmp_url = live_url if live else hls_url if hls else None
+    rtmp_type = ["live", "hls"] if live and hls else ["live"] if live else ["hls"] if hls else []
     for cate, channel_obj in data.items():
         custom_print(f"\n{cate}:", end=" ")
         content += f"{'\n\n' if not first_cate else ''}{cate},#genre#"
@@ -749,7 +764,7 @@ def process_write_content(path: str,
         names_len = len(list(channel_obj_keys))
         for i, name in enumerate(channel_obj_keys):
             info_list = data.get(cate, {}).get(name, [])
-            channel_urls = get_total_urls(info_list, ipv_type_prefer, origin_type_prefer)
+            channel_urls = get_total_urls(info_list, ipv_type_prefer, origin_type_prefer, rtmp_type)
             result_data += channel_urls
             end_char = ", " if i < names_len - 1 else ""
             custom_print(f"{name}:", len(channel_urls), end=end_char)
@@ -758,7 +773,14 @@ def process_write_content(path: str,
                     no_result_name.append(name)
                 continue
             for item in channel_urls:
-                content += f"\n{name},{rtmp_url}{item["id"]}" if rtmp_url else f"\n{name},{item["url"]}"
+                item_origin = item.get("origin", None)
+                item_rtmp_url = None
+                if item_origin == "live":
+                    item_rtmp_url = live_url
+                elif item_origin == "hls":
+                    item_rtmp_url = hls_url
+                item_url = f"{rtmp_url or item_rtmp_url}{item['id']}" if rtmp_url or item_rtmp_url else item["url"]
+                content += f"\n{name},{item_url}"
         custom_print()
     if open_empty_category and no_result_name:
         custom_print("\n🈳 No result channel name:")
@@ -772,7 +794,7 @@ def process_write_content(path: str,
         update_time_item = next(
             (urls[0] for channel_obj in data.values()
              for info_list in channel_obj.values()
-             if (urls := get_total_urls(info_list, ipv_type_prefer, origin_type_prefer))),
+             if (urls := get_total_urls(info_list, ipv_type_prefer, origin_type_prefer, rtmp_type))),
             {"id": "id", "url": "url"}
         )
         now = get_datetime_now()
@@ -786,12 +808,12 @@ def process_write_content(path: str,
         try:
             cursor = conn.cursor()
             cursor.execute(
-                "CREATE TABLE IF NOT EXISTS result_data (id TEXT PRIMARY KEY, url TEXT, ipv_type TEXT)"
+                "CREATE TABLE IF NOT EXISTS result_data (id TEXT PRIMARY KEY, url TEXT)"
             )
             for item in result_data:
                 cursor.execute(
-                    "INSERT OR REPLACE INTO result_data (id, url, ipv_type) VALUES (?, ?, ?)",
-                    (item["id"], item["url"], item["ipv_type"])
+                    "INSERT OR REPLACE INTO result_data (id, url) VALUES (?, ?)",
+                    (item["id"], item["url"])
                 )
             conn.commit()
         finally:
@@ -819,7 +841,9 @@ def write_channel_to_file(data, ipv6=False, first_channel_name=None, callback=No
         if any(pref in ipv_type_prefer for pref in ["自动", "auto"]):
             ipv_type_prefer = ["ipv6", "ipv4"] if ipv6 else ["ipv4", "ipv6"]
         origin_type_prefer = config.origin_type_prefer
-        rtmp_url = f"{get_ip_address()}/rtmp/"
+        address = get_ip_address()
+        live_url = f"{address}/live/"
+        hls_url = f"{address}/hls/"
         file_list = [
             {"path": config.final_file, "enable_log": True},
             {"path": constants.ipv4_result_path, "ipv_type_prefer": ["ipv4"]},
@@ -827,17 +851,37 @@ def write_channel_to_file(data, ipv6=False, first_channel_name=None, callback=No
         ]
         if config.open_rtmp and not os.environ.get("GITHUB_ACTIONS"):
             file_list += [
-                {"path": constants.rtmp_result_path, "rtmp_url": rtmp_url},
-                {"path": constants.ipv4_rtmp_result_path, "rtmp_url": rtmp_url,
-                 "ipv_type_prefer": ["ipv4"]},
-                {"path": constants.ipv6_rtmp_result_path, "rtmp_url": rtmp_url,
-                 "ipv_type_prefer": ["ipv6"]},
+                {"path": constants.live_result_path, "live": True},
+                {
+                    "path": constants.live_ipv4_result_path,
+                    "live": True,
+                    "ipv_type_prefer": ["ipv4"]
+                },
+                {
+                    "path": constants.live_ipv6_result_path,
+                    "live": True,
+                    "ipv_type_prefer": ["ipv6"]
+                },
+                {"path": constants.hls_result_path, "hls": True},
+                {
+                    "path": constants.hls_ipv4_result_path,
+                    "hls": True,
+                    "ipv_type_prefer": ["ipv4"]
+                },
+                {
+                    "path": constants.hls_ipv6_result_path,
+                    "hls": True,
+                    "ipv_type_prefer": ["ipv6"]
+                },
             ]
         for file in file_list:
             process_write_content(
                 path=file["path"],
                 data=data,
-                rtmp_url=file.get("rtmp_url", None),
+                live=file.get("live", False),
+                hls=file.get("hls", False),
+                live_url=live_url,
+                hls_url=hls_url,
                 open_empty_category=open_empty_category,
                 ipv_type_prefer=file.get("ipv_type_prefer", ipv_type_prefer),
                 origin_type_prefer=origin_type_prefer,
